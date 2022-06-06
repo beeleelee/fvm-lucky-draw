@@ -26,6 +26,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 anyhow = "1.0.52"
 wasmtime = "0.35.2"
+base64 = "0.13.0"
 
 [build-dependencies]
 wasm-builder = "3.0.1"

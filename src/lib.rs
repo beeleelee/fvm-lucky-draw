@@ -218,6 +218,7 @@ impl State {
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use base64;
 
     #[test]
     fn test_address() {
@@ -247,6 +248,22 @@ mod tests {
         assert_eq!(addrs2[0].to_string(), "f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea");
         assert_eq!(addrs2[1].to_string(), "f13arowvbfjgdy3hqmzujfvknuxn2wts77l5ths3q");
         assert_eq!(addrs2[2].to_string(), "f13cp7xurexqvs33h2nh3d5ujzg4mwc4rtrvijw7q");
+        assert_eq!(base64::encode(expect), "gYNVAdZiV9p0BJDBsxRDBxBU4kAJJaQPVQHYIutUJUmHjZ4MzRJaqbS7dWnL/1UB2J/70iS8Ky3s+mn2PtE5NxlhcjM=");
+    }
+
+    #[test]
+    fn test_init_param() {
+        let can1 = Address::from_str("f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea").unwrap();
+        let can2 = Address::from_str("f13arowvbfjgdy3hqmzujfvknuxn2wts77l5ths3q").unwrap();
+        let can3 = Address::from_str("f13cp7xurexqvs33h2nh3d5ujzg4mwc4rtrvijw7q").unwrap();
+        let p: InitParam = InitParam { 
+            owner: Address::from_str("f1joi27fay5otrjkn6r3ak4fwxyolkifbz3dlcwdi").unwrap(),
+            winners_num: 1, 
+            candidates: vec![can1, can2, can3],
+        };
+        let bs = to_vec(&p).unwrap();
+        assert_eq!(bs, vec![131, 85, 1, 75, 145, 175, 148, 24, 235, 167, 20, 169, 190, 142, 192, 174, 22, 215, 195, 150, 164, 20, 57, 1, 131, 85, 1, 214, 98, 87, 218, 116, 4, 144, 193, 179, 20, 67, 7, 16, 84, 226, 64, 9, 37, 164, 15, 85, 1, 216, 34, 235, 84, 37, 73, 135, 141, 158, 12, 205, 18, 90, 169, 180, 187, 117, 105, 203, 255, 85, 1, 216, 159, 251, 210, 36, 188, 43, 45, 236, 250, 105, 246, 62, 209, 57, 55, 25, 97, 114, 51]);
+        assert_eq!(base64::encode(bs), "g1UBS5GvlBjrpxSpvo7ArhbXw5akFDkBg1UB1mJX2nQEkMGzFEMHEFTiQAklpA9VAdgi61QlSYeNngzNElqptLt1acv/VQHYn/vSJLwrLez6afY+0Tk3GWFyMw==");
     }
 
 }

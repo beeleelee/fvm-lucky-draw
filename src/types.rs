@@ -28,3 +28,9 @@ pub struct AddCandidatesParam {
     pub addresses: Vec<Address>,
 }
 
+#[derive(Serialize_tuple, Deserialize_tuple, Clone, Debug)]
+pub struct InitParam {
+    pub owner: Address,
+    pub winners_num: u32,
+    pub candidates: Vec<Address>,
+}
