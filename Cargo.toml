@@ -16,6 +16,8 @@ serde = { version = "1.0.136", features = ["derive"] }
 serde_tuple = "0.5"
 anyhow = "1.0.56"
 fvm_ipld_hamt = "0.5.1"
+rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
 fvm = { version = "1.0.0-rc.1", git = "https://github.com/filecoin-project/ref-fvm" }

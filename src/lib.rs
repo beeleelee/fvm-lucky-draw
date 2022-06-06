@@ -12,6 +12,8 @@ use fvm_shared::ActorID;
 use fvm_sdk::message;
 use fvm_ipld_hamt as hamt;
 use hamt::{Hamt};
+use rand::Rng;
+use fvm_shared::address::Address;
 
 /// A macro to abort concisely.
 /// This should be part of the SDK as it's very handy.
@@ -38,8 +40,10 @@ pub fn invoke(params_id: u32) -> u32 {
     // Conduct method dispatch. Handle input parameters and return data.
     let ret: Option<RawBytes> = match message::method_number() {
         1 => constructor(params_id),
-        2 => ready(params_id),
-        3 => current_state(params_id),
+        2 => add_candidates(params_id),
+        3 => ready(params_id),
+        4 => lucky_draw(),
+        5 => current_state(params_id),
         _ => abort!(USR_UNHANDLED_MESSAGE, "unrecognized method"),
     };
 
@@ -135,8 +139,58 @@ pub fn current_state(_: u32) -> Option<RawBytes> {
     }
 }
 
-
 /// Method num 3.
+pub fn lucky_draw() -> Option<RawBytes> {
+    let mut state = State::load();
+    
+    if sdk::message::caller() !=  state.owner {
+        abort!(USR_FORBIDDEN, "lucky draw invoked by non-owner actor");
+    }
+    if !state.ready {
+        abort!(USR_ILLEGAL_STATE, "lucky draw is not ready yet");
+    }
+
+    let mut candidates: Hamt<Blockstore, Candidate, u32> = match Hamt::load(&state.candidates, Blockstore) {
+        Ok(can) => can,
+        Err(err) => {
+            abort!(USR_ILLEGAL_STATE, "failed load candidates from store: {:?}", err)
+        }
+    };
+    let mut cv: Vec<u32> = Vec::new();
+    let mut addrs: Vec<Address> = Vec::new();
+    if let Err(err) = candidates.for_each(|_, cand| {
+        if !cand.winner {
+            cv.push(cand.idx);
+            addrs.push(cand.address.clone());
+        };
+        Ok(())
+    }){
+        abort!(USR_ILLEGAL_STATE, "failed tranverse candidates: {:?}", err)
+    }
+    if cv.len() == 0 {
+        abort!(USR_ILLEGAL_STATE, "lack of candidates")
+    }
+    let mut rng = rand::thread_rng();
+    let i = rng.gen_range(0..cv.len());
+    let winner = cv.as_slice()[i];
+    state.winners.push(winner);
+    
+    if let Err(err) = candidates.set(winner, Candidate { address: addrs.as_slice()[i].clone(), winner: true, idx: winner }) {
+        abort!(USR_ILLEGAL_STATE, "failed set winner: {:?}", err)
+    }
+    state.candidates = match candidates.flush() {
+        Ok(cid) => cid,
+        Err(err) => {
+            abort!(USR_ILLEGAL_STATE, "failed update candidates: {:?}", err)
+        }
+    };
+    
+    state.save();
+    None
+}
+
+
+/// Method num 4.
 pub fn ready(_: u32) -> Option<RawBytes> {
     let mut state = State::load();
     
@@ -230,7 +284,6 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use base64;
-    use fvm_shared::address::*;
     use std::str::FromStr;
 
     #[test]
