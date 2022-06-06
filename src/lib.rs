@@ -186,7 +186,20 @@ pub fn lucky_draw() -> Option<RawBytes> {
     };
     
     state.save();
-    None
+    
+    let res = format!("Winner: {:?}", addrs.as_slice()[i]);
+
+    let ret = to_vec(res.as_str());
+    match ret {
+        Ok(ret) => Some(RawBytes::new(ret)),
+        Err(err) => {
+            abort!(
+                USR_ILLEGAL_STATE,
+                "failed to serialize return value: {:?}",
+                err
+            )
+        }
+    }
 }
 
 
