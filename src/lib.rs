@@ -1,22 +1,17 @@
 mod blockstore;
 mod types;
 
-use std::str::FromStr;
-
 use crate::blockstore::Blockstore;
 use crate::types::*;
 use cid::multihash::Code;
 use cid::Cid;
-//use fvm_ipld_encoding::tuple::{Deserialize_tuple, Serialize_tuple};
-use fvm_ipld_encoding::{to_vec, CborStore, RawBytes, DAG_CBOR};
+use fvm_ipld_encoding::{to_vec, CborStore, RawBytes, DAG_CBOR, from_slice};
 use fvm_sdk as sdk;
 use fvm_sdk::NO_DATA_BLOCK_ID;
 use fvm_shared::ActorID;
-use fvm_shared::address::Address;
 use fvm_sdk::message;
 use fvm_ipld_hamt as hamt;
 use hamt::{Hamt};
-use serde_json;
 
 /// A macro to abort concisely.
 /// This should be part of the SDK as it's very handy.
@@ -78,22 +73,46 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
         Ok(tup) => tup,
         Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to receive params: {:?}", err),
     };
-    let addrst = String::from_utf8(raw).unwrap();
-    let addr = match Address::from_str(addrst.as_str()) {
-        Ok(a) => a, 
-        Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to parse address: {:?}", err)
+    let ip: InitParam = match from_slice(raw.as_slice()){
+        Ok(ip) => ip, 
+        Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to unmarshal InitParam: {:?}", err),
     };
-    let owner = match fvm_sdk::actor::resolve_address(&addr) {
-        Some(id) => id,
-        None => abort!(USR_ILLEGAL_ARGUMENT, "failed to resolve address"),
+    let owner = match fvm_sdk::actor::resolve_address(&ip.owner){
+        Some(o) => o,
+        None => {
+            abort!(USR_ILLEGAL_ARGUMENT, "failed to resovle owner to actor: {:?}", ip.owner)
+        }
     };
+    let candidates: Cid;
+    if ip.candidates.len() > 0 {
+        let mut bstore:Hamt<Blockstore, Candidate, ActorID> = Hamt::new(Blockstore);
+        ip.candidates.iter().for_each(|addr|{
+            let aid = match sdk::actor::resolve_address(addr) {
+                Some(id) => id,
+                None => {
+                    abort!(USR_ILLEGAL_ARGUMENT, "failed to resolve address: {:?}", addr)
+                },
+            };
+            if let Err(err) = bstore.set(aid, Candidate { address: addr.clone(), actor_id: aid, winner: false }) {
+                abort!(USR_ILLEGAL_STATE, "failed save candidate: {:?}", err)
+            }
+        });
+        candidates = match bstore.flush() {
+            Ok(cid) => cid,
+            Err(err) => {
+                abort!(USR_ILLEGAL_STATE, "failed update candidates: {:?}", err)
+            }
+        };
+    } else {
+        candidates = Cid::default();
+    }
     let state = State{
         owner,
-        candidates: Cid::default(),
+        candidates,
         winners: vec![],
         ready: false,
         finished: false,
-        winners_num: 1,
+        winners_num: ip.winners_num,
     };
     state.save();
     None
@@ -140,9 +159,9 @@ pub fn add_candidates(params_id: u32) -> Option<RawBytes> {
         Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to receive params: {:?}", err),
     };
     
-    let p: AddCandidatesParam = match serde_json::from_slice(raw.as_slice()) {
+    let p: AddCandidatesParam = match from_slice(raw.as_slice()) {
         Ok(item) => item,
-        Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to do params convertion: {:?}", err),
+        Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to unmarshal AddCandidatesParam: {:?}", err),
     };
     let mut state: State = State::load();
     let mut candidates :Hamt<Blockstore, Candidate, ActorID>;
@@ -219,6 +238,8 @@ mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
     use base64;
+    use fvm_shared::address::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_address() {
