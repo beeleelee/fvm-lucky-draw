@@ -84,18 +84,14 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
         }
     };
     let candidates: Cid;
+    let mut idx: u32 = 0;
     if ip.candidates.len() > 0 {
-        let mut bstore:Hamt<Blockstore, Candidate, ActorID> = Hamt::new(Blockstore);
+        let mut bstore:Hamt<Blockstore, Candidate, u32> = Hamt::new(Blockstore);
         ip.candidates.iter().for_each(|addr|{
-            let aid = match sdk::actor::resolve_address(addr) {
-                Some(id) => id,
-                None => {
-                    abort!(USR_ILLEGAL_ARGUMENT, "failed to resolve address: {:?}", addr)
-                },
-            };
-            if let Err(err) = bstore.set(aid, Candidate { address: addr.clone(), actor_id: aid, winner: false }) {
+            if let Err(err) = bstore.set(idx, Candidate { address: addr.clone(), idx: idx, winner: false }) {
                 abort!(USR_ILLEGAL_STATE, "failed save candidate: {:?}", err)
             }
+            idx = idx+1;
         });
         candidates = match bstore.flush() {
             Ok(cid) => cid,
@@ -113,6 +109,7 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
         ready: false,
         finished: false,
         winners_num: ip.winners_num,
+        canidx: idx,
     };
     state.save();
     None
@@ -164,7 +161,7 @@ pub fn add_candidates(params_id: u32) -> Option<RawBytes> {
         Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to unmarshal AddCandidatesParam: {:?}", err),
     };
     let mut state: State = State::load();
-    let mut candidates :Hamt<Blockstore, Candidate, ActorID>;
+    let mut candidates :Hamt<Blockstore, Candidate, u32>;
     if state.candidates.eq(&Cid::default()) {
         candidates = Hamt::new(Blockstore);
     } else {
@@ -176,15 +173,10 @@ pub fn add_candidates(params_id: u32) -> Option<RawBytes> {
         }
     }
     p.addresses.iter().for_each(|addr| {
-        let aid = match sdk::actor::resolve_address(addr) {
-            Some(id) => id,
-            None => {
-                abort!(USR_ILLEGAL_ARGUMENT, "failed to resolve address: {:?}", addr)
-            },
-        };
-        if let Err(err) = candidates.set(aid, Candidate { address: addr.clone(), actor_id: aid, winner: false }) {
+        if let Err(err) = candidates.set(state.canidx, Candidate { address: addr.clone(), idx: state.canidx, winner: false }) {
             abort!(USR_ILLEGAL_STATE, "failed save candidate: {:?}", err)
         }
+        state.canidx = state.canidx + 1;
     });
     let cid = match candidates.flush() {
         Ok(cid) => cid,
