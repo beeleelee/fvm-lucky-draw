@@ -11,9 +11,9 @@ use fvm_sdk::NO_DATA_BLOCK_ID;
 use fvm_shared::ActorID;
 use fvm_sdk::message;
 use fvm_ipld_hamt as hamt;
-use hamt::{Hamt};
-use rand::Rng;
+use hamt::Hamt;
 use fvm_shared::address::Address;
+
 
 /// A macro to abort concisely.
 /// This should be part of the SDK as it's very handy.
@@ -149,6 +149,9 @@ pub fn lucky_draw() -> Option<RawBytes> {
     if !state.ready {
         abort!(USR_ILLEGAL_STATE, "lucky draw is not ready yet");
     }
+    if state.winners.len() >= state.winners_num.try_into().unwrap() {
+        abort!(USR_ILLEGAL_STATE, "all winners have been drawn");
+    }
 
     let mut candidates: Hamt<Blockstore, Candidate, u32> = match Hamt::load(&state.candidates, Blockstore) {
         Ok(can) => can,
@@ -167,11 +170,12 @@ pub fn lucky_draw() -> Option<RawBytes> {
     }){
         abort!(USR_ILLEGAL_STATE, "failed tranverse candidates: {:?}", err)
     }
-    if cv.len() == 0 {
+    let cvlen: u32 = cv.len().try_into().unwrap();
+    if cvlen == 0 {
         abort!(USR_ILLEGAL_STATE, "lack of candidates")
     }
-    let mut rng = rand::thread_rng();
-    let i = rng.gen_range(0..cv.len());
+    
+    let i = 0;
     let winner = cv.as_slice()[i];
     state.winners.push(winner);
     
@@ -187,7 +191,7 @@ pub fn lucky_draw() -> Option<RawBytes> {
     
     state.save();
     
-    let res = format!("Winner: {:?}", addrs.as_slice()[i]);
+    let res = format!("Winner: {:?}", addrs.as_slice()[i].to_string());
 
     let ret = to_vec(res.as_str());
     match ret {
