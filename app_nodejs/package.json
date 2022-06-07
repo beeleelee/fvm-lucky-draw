@@ -1,0 +1,18 @@
+{
+  "name": "lucky_draw",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@glif/filecoin-address": "^2.0.0-beta.3",
+    "@ipld/dag-cbor": "^7.0.2",
+    "filecoin.js": "^0.0.5-alpha",
+    "js-base64": "^3.7.2",
+    "multiformats": "^9.6.5"
+  }
+}

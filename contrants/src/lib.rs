@@ -13,6 +13,7 @@ use fvm_sdk::message;
 use fvm_ipld_hamt as hamt;
 use hamt::Hamt;
 use fvm_shared::address::Address;
+use fvm_sdk::rand::*;
 
 
 /// A macro to abort concisely.
@@ -175,7 +176,8 @@ pub fn lucky_draw() -> Option<RawBytes> {
         abort!(USR_ILLEGAL_STATE, "lack of candidates")
     }
     
-    let i = 0;
+    let i = rng_gen_range(0, cvlen);
+    let i: usize = i.try_into().unwrap();
     let winner = cv.as_slice()[i];
     state.winners.push(winner);
     
@@ -296,6 +298,15 @@ impl State {
     }
 }
 
+fn rng_gen_range(low: u32, high: u32) -> u32 {
+    let d: [u8;32] = [0;32];
+    let r = get_beacon_randomness(32, fvm_sdk::network::curr_epoch() - 100, d.as_slice()).unwrap().0;
+    let x = r.as_slice();
+    let xx: [u8;4] = [x[0], x[1], x[2], x[3]];
+    let xxx = u32::from_be_bytes(xx);
+    low + xxx % (high - low)
+}
+
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
@@ -339,14 +350,26 @@ mod tests {
         let can1 = Address::from_str("f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea").unwrap();
         let can2 = Address::from_str("f13arowvbfjgdy3hqmzujfvknuxn2wts77l5ths3q").unwrap();
         let can3 = Address::from_str("f13cp7xurexqvs33h2nh3d5ujzg4mwc4rtrvijw7q").unwrap();
+        let can4 = Address::from_str("f13tgop5lqasp3dbwxjizzkcol5du6avjqtgrvojy").unwrap();
+        let can5 = Address::from_str("f14tik37yu7gejv6ifo7r2n4pcaaoyqocd74xv2zq").unwrap();
+        let can6 = Address::from_str("f15am4vztyfiu3y4yiyhgawrkyz44lsxgvr3dzqmi").unwrap();
         let p: InitParam = InitParam { 
             owner: Address::from_str("f1joi27fay5otrjkn6r3ak4fwxyolkifbz3dlcwdi").unwrap(),
-            winners_num: 1, 
-            candidates: vec![can1, can2, can3],
+            winners_num: 3, 
+            candidates: vec![can1, can2, can3, can4, can5, can6],
         };
         let bs = to_vec(&p).unwrap();
-        assert_eq!(bs, vec![131, 85, 1, 75, 145, 175, 148, 24, 235, 167, 20, 169, 190, 142, 192, 174, 22, 215, 195, 150, 164, 20, 57, 1, 131, 85, 1, 214, 98, 87, 218, 116, 4, 144, 193, 179, 20, 67, 7, 16, 84, 226, 64, 9, 37, 164, 15, 85, 1, 216, 34, 235, 84, 37, 73, 135, 141, 158, 12, 205, 18, 90, 169, 180, 187, 117, 105, 203, 255, 85, 1, 216, 159, 251, 210, 36, 188, 43, 45, 236, 250, 105, 246, 62, 209, 57, 55, 25, 97, 114, 51]);
-        assert_eq!(base64::encode(bs), "g1UBS5GvlBjrpxSpvo7ArhbXw5akFDkBg1UB1mJX2nQEkMGzFEMHEFTiQAklpA9VAdgi61QlSYeNngzNElqptLt1acv/VQHYn/vSJLwrLez6afY+0Tk3GWFyMw==");
+        assert_eq!(bs, vec![131, 85, 1, 75, 145, 175, 148, 24, 235, 167, 20, 169, 190, 142, 192, 174, 22, 215, 195, 150, 164, 20, 57, 3, 134, 85, 1, 214, 98, 87, 218, 116, 4, 144, 193, 179, 20, 67, 7, 16, 84, 226, 64, 9, 37, 164, 15, 85, 1, 216, 34, 235, 84, 37, 73, 135, 141, 158, 12, 205, 18, 90, 169, 180, 187, 117, 105, 203, 255, 85, 1, 216, 159, 251, 210, 36, 188, 43, 45, 236, 250, 105, 246, 62, 209, 57, 55, 25, 97, 114, 51, 85, 1, 220, 204, 231, 245, 112, 4, 159, 177, 134, 215, 74, 51, 149, 9, 203, 232, 233, 224, 85, 48, 85, 1, 228, 208, 173, 255, 20, 249, 136, 154, 249, 5, 119, 227, 166, 241, 226, 0, 29, 136, 56, 67, 85, 1, 232, 25, 202, 230, 120, 42, 41, 188, 115, 8, 193, 204, 11, 69, 88, 207, 56, 185, 92, 213]);
+        assert_eq!(base64::encode(bs), "g1UBS5GvlBjrpxSpvo7ArhbXw5akFDkDhlUB1mJX2nQEkMGzFEMHEFTiQAklpA9VAdgi61QlSYeNngzNElqptLt1acv/VQHYn/vSJLwrLez6afY+0Tk3GWFyM1UB3Mzn9XAEn7GG10ozlQnL6OngVTBVAeTQrf8U+Yia+QV346bx4gAdiDhDVQHoGcrmeCopvHMIwcwLRVjPOLlc1Q==");
+
+        let p = InitParam {
+            owner: Address::from_str("f1joi27fay5otrjkn6r3ak4fwxyolkifbz3dlcwdi").unwrap(),
+            winners_num: 3,
+            candidates: Vec::<Address>::new(),
+        };
+        let bs: Vec<u8> = to_vec(&p).unwrap();
+        assert_eq!(bs, vec![131, 85, 1, 75, 145, 175, 148, 24, 235, 167, 20, 169, 190, 142, 192, 174, 22, 215, 195, 150, 164, 20, 57, 3, 128]);
+        assert_eq!(base64::encode(bs), "g1UBS5GvlBjrpxSpvo7ArhbXw5akFDkDgA==");
     }
 
 }
