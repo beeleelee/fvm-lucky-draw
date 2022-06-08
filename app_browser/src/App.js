@@ -347,7 +347,7 @@ class App extends Component {
     return (
       <div className="App">
         <header className="App-header">
-          fvm lucky draw 
+          fvm lucky draw v0.0.1
         </header>
         <div >
             step {this.state.step}
