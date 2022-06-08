@@ -182,8 +182,8 @@ class App extends Component {
           Method: 4,
           Params: ""
       })
-      console.log("going to call lucky draw method, num: 4")
-      message.info("going to call lucky draw method and wait for response")
+      console.log("going to call lucky_draw method, num: 4")
+      message.info("going to call lucky_draw method and wait for response")
       let signMessage = await this.walletProvider.signMessage(_message);
       this.setWaiting(true)
       let mcid = await this.walletProvider.sendSignedMessage(signMessage)
@@ -205,7 +205,38 @@ class App extends Component {
           message.error(res.Receipt.Return)
       }
     } catch (err) {
-      message.error("failed to set state ready: " + err.message)
+      message.error("failed to draw a winner: " + err.message)
+      return 
+    }
+  }
+  async checkActorState() {
+    if (this.state.waiting) {
+      return 
+    }
+    try {
+      let _message = await this.walletProvider.createMessage({
+          To: this.state.actor,
+          From: this.state.owner,
+          Value: 0,
+          Method: 5,
+          Params: ""
+      })
+      console.log("going to call current_state method, num: 4")
+      message.info("going to call current_state method and wait for response")
+      let signMessage = await this.walletProvider.signMessage(_message);
+      this.setWaiting(true)
+      let mcid = await this.walletProvider.sendSignedMessage(signMessage)
+      let res = await this.lotusClient.state.waitMsg(mcid, 1)
+      setTimeout(()=>{
+        this.setWaiting(false)
+      }, 100)
+      if (res.Receipt.ExitCode === 0) {
+          message.info(base64.decode(res.Receipt.Return))
+      } else {
+          message.error(res.Receipt.Return, 6)
+      }
+    } catch (err) {
+      message.error(err.message)
       return 
     }
   }
@@ -269,6 +300,9 @@ class App extends Component {
           <p>
             <Button type="primary" onClick={() => this.checkStep2()} >Next</Button>
           </p>
+          <p>
+            <Button type="default" onClick={() => this.checkActorState()} >Actor State</Button>
+          </p>
         </Card>
       </div>
     )
@@ -284,6 +318,9 @@ class App extends Component {
           <p>
             <Button type="primary" onClick={() => this.checkStep3()} >Next</Button>
           </p>
+          <p>
+            <Button type="default" onClick={() => this.checkActorState()} >Actor State</Button>
+          </p>
         </Card>
       </div>
     )
@@ -298,6 +335,9 @@ class App extends Component {
           
           <p>
             <Button type="primary" onClick={() => this.checkStep4()} >Draw</Button>
+          </p>
+          <p>
+            <Button type="default" onClick={() => this.checkActorState()} >Actor State</Button>
           </p>
         </Card>
       </div>

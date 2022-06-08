@@ -15,7 +15,7 @@ pub struct State {
     pub winners: Vec<u32>,
     // indicating if lucky draw contract is ready to draw winners
     pub ready: bool,
-    // not used for now
+    // indicating if we reached the limit of max winners number 
     pub finished: bool,
     // this limit the max number of winners for the lucky draw contract
     pub winners_num: u32,

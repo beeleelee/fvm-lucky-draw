@@ -203,6 +203,10 @@ pub fn lucky_draw() -> Option<RawBytes> {
             abort!(USR_ILLEGAL_STATE, "failed update candidates: {:?}", err)
         }
     };
+    // check if we reached to limit of max winner number
+    if state.winners.len() == state.winners_num.try_into().unwrap() {
+        state.finished = true;
+    }
     // update contract state
     state.save();
     
