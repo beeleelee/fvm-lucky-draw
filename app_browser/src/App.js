@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { Card, Input, Button, message } from 'antd'
+import { Card, Input, Button, message, Spin } from 'antd'
 import { LotusClient, LotusWalletProvider, HttpJsonRpcConnector } from "filecoin.js"
 import * as base64 from "js-base64"
 import { newFromString } from '@glif/filecoin-address'
@@ -16,6 +16,7 @@ class App extends Component {
     this.lotusClient = null 
     this.walletProvider = null 
     this.candidates = ""
+    
     this.state = {
       step: 1,
       rpcUrl: "",
@@ -25,6 +26,7 @@ class App extends Component {
       candidates: [],
       winners: [],
       ready: false,
+      waiting: false,
       setupInfo: {
         actor: "",
         rpcUrl: "",
@@ -32,7 +34,17 @@ class App extends Component {
       }
     };
   }
+  setWaiting(bool) {
+    console.log("set waiting to: ", bool)
+    this.setState({
+      ...this.state,
+      waiting: bool,
+    })
+  }
   async checkStep1() {
+    if (this.state.waiting) {
+      return 
+    }
     let { actor, rpcUrl, rpcToken } = this.state.setupInfo
     if (actor == "" || rpcUrl == "" || rpcToken == "") {
       message.info("please fill the setup info", 3)
@@ -72,9 +84,12 @@ class App extends Component {
     })
   }
   async checkStep2() {
+    if (this.state.waiting) {
+      return 
+    }
     let cds
     // test data
-    // f1afrqdycktgvkhpcqvrm4mcky6oyyxabtgavjeii,f173cjjdlcgclbonefmp3yhi4csbvvtiv327gmbra,f14tpybg2cxfscpwydxilmsadaanfkss76woksuoy,f12tlivbvfurf6neuwsqirsr4hcoi4tiynqldmk3y,f1gbjayfccagwlpausgzkcs3ss54ou4jgkwu4cana,f1cpwknapvsfm2zvzbzaxx4l3ce5ugbfzt3ku74sa
+    // f1afrqdycktgvkhpcqvrm4mcky6oyyxabtgavjeii,f173cjjdlcgclbonefmp3yhi4csbvvtiv327gmbra,f14tpybg2cxfscpwydxilmsadaanfkss76woksuoy,f12tlivbvfurf6neuwsqirsr4hcoi4tiynqldmk3y,f1gbjayfccagwlpausgzkcs3ss54ou4jgkwu4cana,f1cpwknapvsfm2zvzbzaxx4l3ce5ugbfzt3ku74sa,f16ryxz5aeywc2a5r7ogycgio65t6jcoouu6icuky,f1japgvu5pyry7a7piy6a7zm72b56i6gldgq4aoai,f1aifv6bku2jewf3baoyadpxrz5krrtgje2zft6da,f1ue4bysijex75zshxsbr6rsnrm3wa446lro4lmiq
     if(this.candidates.trim() === "") {
       message.info("Please select some candidates")
       return 
@@ -94,11 +109,16 @@ class App extends Component {
           Params: params
       })
       console.log("going to call add_candidates method, num: 2")
+      message.info("going to call add_candidates and wait for response")
+      this.setWaiting(true)
       let signMessage = await this.walletProvider.signMessage(_message);
 
       let mcid = await this.walletProvider.sendSignedMessage(signMessage)
       let res = await this.lotusClient.state.waitMsg(mcid, 1)
-
+      setTimeout(()=>{
+        this.setWaiting(false)
+      }, 100)
+        
       if (res.Receipt.ExitCode == 0) {
           message.info("add candidates success")
       } else {
@@ -116,6 +136,9 @@ class App extends Component {
     })
   }
   async checkStep3() {
+    if (this.state.waiting) {
+      return 
+    }
     try {
       let _message = await this.walletProvider.createMessage({
           To: this.state.actor,
@@ -125,12 +148,14 @@ class App extends Component {
           Params: ""
       })
       console.log("going to call ready method, num: 3")
-      
+      message.info("going to call ready method and wait for response")
       let signMessage = await this.walletProvider.signMessage(_message);
-
+      this.setWaiting(true)
       let mcid = await this.walletProvider.sendSignedMessage(signMessage)
       let res = await this.lotusClient.state.waitMsg(mcid, 1)
-
+      setTimeout(()=>{
+        this.setWaiting(false)
+      }, 100)
       if (res.Receipt.ExitCode == 0) {
           message.info("lucky draw is ready")
       } else {
@@ -146,6 +171,9 @@ class App extends Component {
     })
   }
   async checkStep4() {
+    if (this.state.waiting) {
+      return 
+    }
     try {
       let _message = await this.walletProvider.createMessage({
           To: this.state.actor,
@@ -155,14 +183,24 @@ class App extends Component {
           Params: ""
       })
       console.log("going to call lucky draw method, num: 4")
-      
+      message.info("going to call lucky draw method and wait for response")
       let signMessage = await this.walletProvider.signMessage(_message);
-
+      this.setWaiting(true)
       let mcid = await this.walletProvider.sendSignedMessage(signMessage)
       let res = await this.lotusClient.state.waitMsg(mcid, 1)
-
+      setTimeout(()=>{
+        this.setWaiting(false)
+      }, 100)
       if (res.Receipt.ExitCode === 0) {
-          message.info(base64.decode(res.Receipt.Return))
+          let winner = base64.decode(res.Receipt.Return).replaceAll(/(^.*\s"|"$)/g, "")
+          message.info("winner: "+winner)
+          this.setState({
+            ...this.state, 
+            winners: [
+              ...this.state.winners,
+              winner
+            ]
+          })
       } else {
           message.error(res.Receipt.Return)
       }
@@ -273,6 +311,7 @@ class App extends Component {
         </header>
         <div >
             step {this.state.step}
+            <p/>
         </div>
         
         <div >
@@ -292,8 +331,22 @@ class App extends Component {
           {
             this.state.rpcUrl != "" ? <div>rpc: {this.state.rpcUrl}</div> : null 
           }
+          {
+            this.state.winners.length > 0 ?
+            <div>
+              {this.state.winners.map((v, i)=>{
+                return <div key={i}>winner #{i} - {v}</div>
+              })}
+            </div>
+            : null 
+          }
           <p/>
         </div>
+        { this.state.waiting ?
+          <div className="cover">
+            <Spin />
+          </div> : null 
+        }
       </div>
     );
   }
