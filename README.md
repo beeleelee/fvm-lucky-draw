@@ -13,3 +13,11 @@ Therefore, the purpose for this project is demonstration and experience exchange
 - Owner set the ready state for the contract actor.
 - Owner call the draw method of the contract actor to draw a winer, and update the state of the contract actor.
 - Owner can do another round of lucky draw until reach the max winner number limit
+
+**Pain points**
+
+- client - param types serialization on client side (mostly for javascript)
+- end point - rpc call from browser been blocked because of cors 
+- fvm - the caller is InitActor when creating fvm actor, but not have a way to know the real caller. I need set the actor owner when creating lucky_draw actor, so I have to pass owner address through parameters.
+- fvm - tried several ways to get a random number but all failed. Seems the only choices are get_beacon_randomness and get_chain_randomness.
+- fvm - have to send message to actor and burning gas to check the actor state. So the read action is time-consuming and expensive. 
