@@ -3,12 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@glif/filecoin-address": "^2.0.0-beta.3",
+    "@ipld/dag-cbor": "^7.0.2",
     "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/react": "^13.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "antd": "^4.21.0",
+    "filecoin.js": "^0.0.5-alpha",
+    "js-base64": "^3.7.2",
+    "multiformats": "^9.6.5",
     "react": "^18.1.0",
     "react-dom": "^18.1.0",
     "react-scripts": "5.0.1",
+    "underscore": "^1.13.4",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
