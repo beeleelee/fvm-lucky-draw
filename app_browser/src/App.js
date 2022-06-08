@@ -83,8 +83,9 @@ class App extends Component {
     cds = cds.filter(item => !!item)
     try {
       let ap = new AddCandidatesParam(cds)
-      let params = base64.encode(ap.encode())
-      console.log("add candidates params base64: ", params)
+      
+      let params = base64.fromUint8Array(ap.encode()).toString()
+      // console.log("add candidates params base64: ", params)
       let _message = await this.walletProvider.createMessage({
           To: this.state.actor,
           From: this.state.owner,
@@ -124,7 +125,7 @@ class App extends Component {
           Params: ""
       })
       console.log("going to call ready method, num: 3")
-      console.log(_message)
+      
       let signMessage = await this.walletProvider.signMessage(_message);
 
       let mcid = await this.walletProvider.sendSignedMessage(signMessage)
@@ -150,18 +151,18 @@ class App extends Component {
           To: this.state.actor,
           From: this.state.owner,
           Value: 0,
-          Method: 3,
+          Method: 4,
           Params: ""
       })
-      console.log("going to call ready method, num: 3")
-      console.log(_message)
+      console.log("going to call lucky draw method, num: 4")
+      
       let signMessage = await this.walletProvider.signMessage(_message);
 
       let mcid = await this.walletProvider.sendSignedMessage(signMessage)
       let res = await this.lotusClient.state.waitMsg(mcid, 1)
 
-      if (res.Receipt.ExitCode == 0) {
-          message.info("lucky draw is ready")
+      if (res.Receipt.ExitCode === 0) {
+          message.info(base64.decode(res.Receipt.Return))
       } else {
           message.error(res.Receipt.Return)
       }
@@ -286,7 +287,7 @@ class App extends Component {
             this.state.actor != "" ? <div >actor: {this.state.actor}</div> : null 
           }
           {
-            this.state.owner != "" ? <div>rpc: {this.state.owner}</div> : null 
+            this.state.owner != "" ? <div>owner: {this.state.owner}</div> : null 
           }
           {
             this.state.rpcUrl != "" ? <div>rpc: {this.state.rpcUrl}</div> : null 
@@ -304,7 +305,8 @@ export default App;
 class AddCandidatesParam {
   constructor(addrs) {
       this.addresses = addrs.map(addr => {
-          return newFromString(addr).str
+          let a = newFromString(addr)
+          return a.str
       });
   }
   encode() {

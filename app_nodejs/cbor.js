@@ -24,10 +24,14 @@ console.log(addr6.str)
 const owner = newFromString("f1joi27fay5otrjkn6r3ak4fwxyolkifbz3dlcwdi")
 
 let p1 = [
-    [addr1.str, addr2.str, addr3.str]
+    [addr1.str, addr2.str, addr3.str, addr4.str, addr5.str, addr6.str]
 ]
-
-console.log(cbor.encode(p1))
+console.log("add candidates params ===================")
+let p1e = cbor.encode(p1)
+console.log(p1e)
+console.log(Uint8Array.from(p1e))
+console.log(base64.fromUint8Array(p1e).toString())
+console.log("==========================================")
 
 let p2 = [
     owner.str, 

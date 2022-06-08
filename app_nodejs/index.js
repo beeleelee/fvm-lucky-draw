@@ -5,8 +5,8 @@ const cbor = require('@ipld/dag-cbor')
 const { CID } = require('multiformats')
 
 const __rpc_url__ = "http://127.0.0.1:1234/rpc/v0"
-const __rpc_token__ = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.fSUL9c4sznCBCoJMb9eY5XYWnu6gXA1GQ_jN4GL6gUI"
-const __actor__ = "t01003"
+const __rpc_token__ = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJyZWFkIiwid3JpdGUiLCJzaWduIiwiYWRtaW4iXX0.zQ7XYQ95RFRvvCSqM7eXkgwlSvHDMIsR1SvhDHY7cyY"
+const __actor__ = "t01002"
 const __init_actor__ = "t01"
 const __actor_cid__ = "bafk2bzacebdn2tibnzokjprdzmbaghmr7grv4esaezer6lnn2wubk4rwmhobc"
 run()
