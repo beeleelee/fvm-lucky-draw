@@ -73,24 +73,33 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
     if message::caller() != INIT_ACTOR_ADDR {
         abort!(USR_FORBIDDEN, "constructor invoked by non-init actor");
     }
-    
+    // get the params raw bytes
     let (_, raw) = match message::params_raw(params_id) {
         Ok(tup) => tup,
         Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to receive params: {:?}", err),
     };
+    // unmarshal raw bytes to InitParam
     let ip: InitParam = match from_slice(raw.as_slice()){
         Ok(ip) => ip, 
         Err(err) => abort!(USR_ILLEGAL_ARGUMENT, "failed to unmarshal InitParam: {:?}", err),
     };
+
+    // resolve the owner parameter to actorId
+    // only owner can add candidates 
+    // only owner can call ready or draw method
     let owner = match fvm_sdk::actor::resolve_address(&ip.owner){
         Some(o) => o,
         None => {
             abort!(USR_ILLEGAL_ARGUMENT, "failed to resovle owner to actor: {:?}", ip.owner)
         }
     };
+
+    // initialize candidates state
     let candidates: Cid;
     let mut idx: u32 = 0;
     if ip.candidates.len() > 0 {
+        // using hamt to store candidates
+        // assign every candidate an index for lucky draw
         let mut bstore:Hamt<Blockstore, Candidate, u32> = Hamt::new(Blockstore);
         ip.candidates.iter().for_each(|addr|{
             if let Err(err) = bstore.set(idx, Candidate { address: addr.clone(), idx: idx, winner: false }) {
@@ -104,7 +113,7 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
                 abort!(USR_ILLEGAL_STATE, "failed update candidates: {:?}", err)
             }
         };
-    } else {
+    } else { // if there aren't candidates from init params, we just use default cid for placeholder
         candidates = Cid::default();
     }
     let state = State{
@@ -113,7 +122,7 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
         winners: vec![],
         ready: false,
         finished: false,
-        winners_num: ip.winners_num,
+        winners_num: ip.winners_num, // this limit the max number of winners for the lucky draw contract
         canidx: idx,
     };
     state.save();
@@ -121,6 +130,7 @@ pub fn constructor(params_id: u32) -> Option<RawBytes> {
 }
 
 /// Method num 2.
+/// showing the current state of the contract
 pub fn current_state(_: u32) -> Option<RawBytes> {
     let state = State::load();
 
@@ -153,15 +163,17 @@ pub fn lucky_draw() -> Option<RawBytes> {
     if state.winners.len() >= state.winners_num.try_into().unwrap() {
         abort!(USR_ILLEGAL_STATE, "all winners have been drawn");
     }
-
+    // fetch candidates from the state of the contract
     let mut candidates: Hamt<Blockstore, Candidate, u32> = match Hamt::load(&state.candidates, Blockstore) {
         Ok(can) => can,
         Err(err) => {
             abort!(USR_ILLEGAL_STATE, "failed load candidates from store: {:?}", err)
         }
     };
+    // set up 2 slice to hold this round candidates indexes and addresses
     let mut cv: Vec<u32> = Vec::new();
     let mut addrs: Vec<Address> = Vec::new();
+    // select candidates who have't win a draw
     if let Err(err) = candidates.for_each(|_, cand| {
         if !cand.winner {
             cv.push(cand.idx);
@@ -175,12 +187,13 @@ pub fn lucky_draw() -> Option<RawBytes> {
     if cvlen == 0 {
         abort!(USR_ILLEGAL_STATE, "lack of candidates")
     }
-    
+    // we randomly choose an index from indexes slice
     let i = rng_gen_range(0, cvlen);
     let i: usize = i.try_into().unwrap();
+    // this round winner comes out
     let winner = cv.as_slice()[i];
     state.winners.push(winner);
-    
+    // update the candidates hamt
     if let Err(err) = candidates.set(winner, Candidate { address: addrs.as_slice()[i].clone(), winner: true, idx: winner }) {
         abort!(USR_ILLEGAL_STATE, "failed set winner: {:?}", err)
     }
@@ -190,7 +203,7 @@ pub fn lucky_draw() -> Option<RawBytes> {
             abort!(USR_ILLEGAL_STATE, "failed update candidates: {:?}", err)
         }
     };
-    
+    // update contract state
     state.save();
     
     let res = format!("Winner: {:?}", addrs.as_slice()[i].to_string());
@@ -316,10 +329,10 @@ mod tests {
 
     #[test]
     fn test_address() {
-        let addr = "f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea";
+        let addr = "f1afrqdycktgvkhpcqvrm4mcky6oyyxabtgavjeii";
         let addr = Address::from_str(&addr).unwrap();
         assert_eq!(addr.protocol(), fvm_shared::address::Protocol::Secp256k1);
-        assert_eq!(to_vec(&addr).unwrap(), vec![85, 1, 214, 98, 87, 218, 116, 4, 144, 193, 179, 20, 67, 7, 16, 84, 226, 64, 9, 37, 164, 15]);
+        assert_eq!(to_vec(&addr).unwrap(), vec![85, 1, 1, 99, 1, 224, 74, 153, 170, 163, 188, 80, 172, 89, 198, 9, 88, 243, 177, 139, 128, 51]);
         let addr: &str = "f020328";
         let addr = Address::from_str(&addr).unwrap();
         assert_eq!(addr.protocol(), fvm_shared::address::Protocol::ID);
@@ -328,39 +341,43 @@ mod tests {
 
     #[test]
     fn test_add_candidates_param() {
-        let addrs = vec!["f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea", "f13arowvbfjgdy3hqmzujfvknuxn2wts77l5ths3q", "f13cp7xurexqvs33h2nh3d5ujzg4mwc4rtrvijw7q"];
+        let addrs = vec![
+            "f1afrqdycktgvkhpcqvrm4mcky6oyyxabtgavjeii",
+            "f173cjjdlcgclbonefmp3yhi4csbvvtiv327gmbra", 
+            "f14tpybg2cxfscpwydxilmsadaanfkss76woksuoy"
+        ];
         let addrs: Vec<Address> = addrs.into_iter().map(|addr| Address::from_str(addr).unwrap()).collect();
         let p = AddCandidatesParam{
             addresses: addrs,
         };
         let bs = to_vec(&p).unwrap();
-        let expect: Vec<u8> = vec![129, 131, 85, 1, 214, 98, 87, 218, 116, 4, 144, 193, 179, 20, 67, 7, 16, 84, 226, 64, 9, 37, 164, 15, 85, 1, 216, 34, 235, 84, 37, 73, 135, 141, 158, 12, 205, 18, 90, 169, 180, 187, 117, 105, 203, 255, 85, 1, 216, 159, 251, 210, 36, 188, 43, 45, 236, 250, 105, 246, 62, 209, 57, 55, 25, 97, 114, 51];
+        let expect: Vec<u8> = vec![129, 131, 85, 1, 1, 99, 1, 224, 74, 153, 170, 163, 188, 80, 172, 89, 198, 9, 88, 243, 177, 139, 128, 51, 85, 1, 254, 196, 148, 141, 98, 48, 150, 23, 52, 133, 99, 247, 131, 163, 130, 144, 107, 89, 162, 187, 85, 1, 228, 223, 128, 155, 66, 185, 100, 39, 219, 3, 186, 22, 201, 0, 96, 3, 74, 169, 75, 254];
         assert_eq!(bs, expect);
 
         let p2: AddCandidatesParam = fvm_ipld_encoding::from_slice(&expect).unwrap();
         let addrs2 = p2.addresses;
-        assert_eq!(addrs2[0].to_string(), "f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea");
-        assert_eq!(addrs2[1].to_string(), "f13arowvbfjgdy3hqmzujfvknuxn2wts77l5ths3q");
-        assert_eq!(addrs2[2].to_string(), "f13cp7xurexqvs33h2nh3d5ujzg4mwc4rtrvijw7q");
-        assert_eq!(base64::encode(expect), "gYNVAdZiV9p0BJDBsxRDBxBU4kAJJaQPVQHYIutUJUmHjZ4MzRJaqbS7dWnL/1UB2J/70iS8Ky3s+mn2PtE5NxlhcjM=");
+        assert_eq!(addrs2[0].to_string(), "f1afrqdycktgvkhpcqvrm4mcky6oyyxabtgavjeii");
+        assert_eq!(addrs2[1].to_string(), "f173cjjdlcgclbonefmp3yhi4csbvvtiv327gmbra");
+        assert_eq!(addrs2[2].to_string(), "f14tpybg2cxfscpwydxilmsadaanfkss76woksuoy");
+        assert_eq!(base64::encode(expect), "gYNVAQFjAeBKmaqjvFCsWcYJWPOxi4AzVQH+xJSNYjCWFzSFY/eDo4KQa1miu1UB5N+Am0K5ZCfbA7oWyQBgA0qpS/4=");
     }
 
     #[test]
     fn test_init_param() {
-        let can1 = Address::from_str("f12zrfpwtuasimdmyuimdravhciaesljapklhd7ea").unwrap();
-        let can2 = Address::from_str("f13arowvbfjgdy3hqmzujfvknuxn2wts77l5ths3q").unwrap();
-        let can3 = Address::from_str("f13cp7xurexqvs33h2nh3d5ujzg4mwc4rtrvijw7q").unwrap();
-        let can4 = Address::from_str("f13tgop5lqasp3dbwxjizzkcol5du6avjqtgrvojy").unwrap();
-        let can5 = Address::from_str("f14tik37yu7gejv6ifo7r2n4pcaaoyqocd74xv2zq").unwrap();
-        let can6 = Address::from_str("f15am4vztyfiu3y4yiyhgawrkyz44lsxgvr3dzqmi").unwrap();
+        let can1 = Address::from_str("f1afrqdycktgvkhpcqvrm4mcky6oyyxabtgavjeii").unwrap();
+        let can2 = Address::from_str("f173cjjdlcgclbonefmp3yhi4csbvvtiv327gmbra").unwrap();
+        let can3 = Address::from_str("f14tpybg2cxfscpwydxilmsadaanfkss76woksuoy").unwrap();
+        let can4 = Address::from_str("f12tlivbvfurf6neuwsqirsr4hcoi4tiynqldmk3y").unwrap();
+        let can5 = Address::from_str("f1gbjayfccagwlpausgzkcs3ss54ou4jgkwu4cana").unwrap();
+        let can6 = Address::from_str("f1cpwknapvsfm2zvzbzaxx4l3ce5ugbfzt3ku74sa").unwrap();
         let p: InitParam = InitParam { 
             owner: Address::from_str("f1joi27fay5otrjkn6r3ak4fwxyolkifbz3dlcwdi").unwrap(),
             winners_num: 3, 
             candidates: vec![can1, can2, can3, can4, can5, can6],
         };
         let bs = to_vec(&p).unwrap();
-        assert_eq!(bs, vec![131, 85, 1, 75, 145, 175, 148, 24, 235, 167, 20, 169, 190, 142, 192, 174, 22, 215, 195, 150, 164, 20, 57, 3, 134, 85, 1, 214, 98, 87, 218, 116, 4, 144, 193, 179, 20, 67, 7, 16, 84, 226, 64, 9, 37, 164, 15, 85, 1, 216, 34, 235, 84, 37, 73, 135, 141, 158, 12, 205, 18, 90, 169, 180, 187, 117, 105, 203, 255, 85, 1, 216, 159, 251, 210, 36, 188, 43, 45, 236, 250, 105, 246, 62, 209, 57, 55, 25, 97, 114, 51, 85, 1, 220, 204, 231, 245, 112, 4, 159, 177, 134, 215, 74, 51, 149, 9, 203, 232, 233, 224, 85, 48, 85, 1, 228, 208, 173, 255, 20, 249, 136, 154, 249, 5, 119, 227, 166, 241, 226, 0, 29, 136, 56, 67, 85, 1, 232, 25, 202, 230, 120, 42, 41, 188, 115, 8, 193, 204, 11, 69, 88, 207, 56, 185, 92, 213]);
-        assert_eq!(base64::encode(bs), "g1UBS5GvlBjrpxSpvo7ArhbXw5akFDkDhlUB1mJX2nQEkMGzFEMHEFTiQAklpA9VAdgi61QlSYeNngzNElqptLt1acv/VQHYn/vSJLwrLez6afY+0Tk3GWFyM1UB3Mzn9XAEn7GG10ozlQnL6OngVTBVAeTQrf8U+Yia+QV346bx4gAdiDhDVQHoGcrmeCopvHMIwcwLRVjPOLlc1Q==");
+        assert_eq!(bs, vec![131, 85, 1, 75, 145, 175, 148, 24, 235, 167, 20, 169, 190, 142, 192, 174, 22, 215, 195, 150, 164, 20, 57, 3, 134, 85, 1, 1, 99, 1, 224, 74, 153, 170, 163, 188, 80, 172, 89, 198, 9, 88, 243, 177, 139, 128, 51, 85, 1, 254, 196, 148, 141, 98, 48, 150, 23, 52, 133, 99, 247, 131, 163, 130, 144, 107, 89, 162, 187, 85, 1, 228, 223, 128, 155, 66, 185, 100, 39, 219, 3, 186, 22, 201, 0, 96, 3, 74, 169, 75, 254, 85, 1, 212, 214, 138, 134, 165, 164, 75, 230, 146, 150, 148, 17, 25, 71, 135, 19, 145, 201, 163, 13, 85, 1, 48, 82, 12, 20, 66, 1, 172, 183, 130, 146, 54, 84, 41, 110, 82, 239, 29, 78, 36, 202, 85, 1, 19, 236, 166, 129, 245, 145, 89, 172, 215, 33, 200, 47, 126, 47, 98, 39, 104, 96, 151, 51]);
+        assert_eq!(base64::encode(bs), "g1UBS5GvlBjrpxSpvo7ArhbXw5akFDkDhlUBAWMB4EqZqqO8UKxZxglY87GLgDNVAf7ElI1iMJYXNIVj94OjgpBrWaK7VQHk34CbQrlkJ9sDuhbJAGADSqlL/lUB1NaKhqWkS+aSlpQRGUeHE5HJow1VATBSDBRCAay3gpI2VCluUu8dTiTKVQET7KaB9ZFZrNchyC9+L2InaGCXMw==");
 
         let p = InitParam {
             owner: Address::from_str("f1joi27fay5otrjkn6r3ak4fwxyolkifbz3dlcwdi").unwrap(),

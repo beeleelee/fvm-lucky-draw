@@ -6,13 +6,20 @@ use fvm_shared::address::Address;
 /// The state object.
 #[derive(Serialize_tuple, Deserialize_tuple, Clone, Debug)]
 pub struct State {
+    // only owner can call add_candidates | ready | draw methods
     pub owner: ActorID,
-    // map canidx => candidate
+    // map canidx => candidate  
+    // if a candidate is already a winner will not go to next round lucky draw
     pub candidates: Cid,
+    // store indexes of winner candidates
     pub winners: Vec<u32>,
+    // indicating if lucky draw contract is ready to draw winners
     pub ready: bool,
+    // not used for now
     pub finished: bool,
+    // this limit the max number of winners for the lucky draw contract
     pub winners_num: u32,
+    // the auto increament index that assign to candidate
     pub canidx: u32,
 }
 
